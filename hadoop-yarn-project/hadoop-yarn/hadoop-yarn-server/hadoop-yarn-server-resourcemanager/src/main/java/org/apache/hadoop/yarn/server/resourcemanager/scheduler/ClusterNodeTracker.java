@@ -48,8 +48,8 @@ public class ClusterNodeTracker<N extends SchedulerNode> {
   private static final Log LOG = LogFactory.getLog(ClusterNodeTracker.class);
 
   private ReadWriteLock readWriteLock = new ReentrantReadWriteLock(true);
-  private Lock readLock = readWriteLock.readLock();
-  private Lock writeLock = readWriteLock.writeLock();
+  private volatile Lock readLock = readWriteLock.readLock();
+  private volatile Lock writeLock = readWriteLock.writeLock();
 
   private HashMap<NodeId, N> nodes = new HashMap<>();
   private Map<String, N> nodeNameToNodeMap = new HashMap<>();
@@ -65,9 +65,26 @@ public class ClusterNodeTracker<N extends SchedulerNode> {
   private boolean forceConfiguredMaxAllocation = true;
   private long configuredMaxAllocationWaitTime;
 
+  // version of node list, it will be increased when adding / removing of nodes
+  // happens. Initially, it starts from zero, and it will be reset to 0 when go
+  // beyond max_long
+  private volatile long nodeListVersion = 0;
+
+  private void updateNodeListVersion() {
+    if (nodeListVersion == Long.MAX_VALUE) {
+      nodeListVersion = 0;
+    }
+  }
+
+  public long getNodeListVersion() {
+    return nodeListVersion;
+  }
+
   public void addNode(N node) {
     writeLock.lock();
     try {
+      updateNodeListVersion();
+
       nodes.put(node.getNodeID(), node);
       nodeNameToNodeMap.put(node.getNodeName(), node);
 
@@ -88,6 +105,14 @@ public class ClusterNodeTracker<N extends SchedulerNode> {
     } finally {
       writeLock.unlock();
     }
+  }
+
+  /*
+   * Sometimes readLocks can be used by external component to do fine-grained
+   * locking.
+   */
+  public Lock getNodeListReadLock() {
+    return readLock;
   }
 
   public boolean exists(NodeId nodeId) {
@@ -159,6 +184,8 @@ public class ClusterNodeTracker<N extends SchedulerNode> {
         LOG.warn("Attempting to remove a non-existent node " + nodeId);
         return null;
       }
+
+      updateNodeListVersion();
       nodeNameToNodeMap.remove(node.getNodeName());
 
       // Update nodes per rack as well

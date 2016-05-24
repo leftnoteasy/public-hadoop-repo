@@ -328,12 +328,11 @@ public class SchedulerApplicationAttempt implements SchedulableEntity {
 
   /**
    * Get total current reservations.
-   * Used only by unit tests
    * @return total current reservations
    */
   @Stable
   @Private
-  public synchronized Resource getCurrentReservation() {
+  public Resource getCurrentReservation() {
     return attemptResourceUsage.getReserved();
   }
   

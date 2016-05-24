@@ -24,6 +24,7 @@ import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.server.resourcemanager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.rmcontainer.RMContainer;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.SchedulerNode;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.activities.ActivitiesLogger;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.activities.ActivitiesManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.activities.ActivityDiagnosticConstant;
@@ -31,6 +32,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.activities.Activi
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceLimits;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CSAssignment;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.SchedulingMode;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.PlacementSet;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.fica.FiCaSchedulerApp;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.fica.FiCaSchedulerNode;
 import org.apache.hadoop.yarn.util.resource.ResourceCalculator;
@@ -65,7 +67,7 @@ public abstract class AbstractContainerAllocator {
 
   protected CSAssignment getCSAssignmentFromAllocateResult(
       Resource clusterResource, ContainerAllocation result,
-      RMContainer rmContainer, FiCaSchedulerNode node) {
+      RMContainer rmContainer, SchedulerNode node) {
     // Handle skipped
     CSAssignment.SkippedType skipped =
         (result.getAllocationState() == AllocationState.APP_SKIPPED) ?
@@ -172,6 +174,6 @@ public abstract class AbstractContainerAllocator {
    * </ul>
    */
   public abstract CSAssignment assignContainers(Resource clusterResource,
-      FiCaSchedulerNode node, SchedulingMode schedulingMode,
+      PlacementSet placementSet, SchedulingMode schedulingMode,
       ResourceLimits resourceLimits, RMContainer reservedContainer);
 }

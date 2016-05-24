@@ -18,12 +18,7 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.fica;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
@@ -55,6 +50,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.Queue;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceLimits;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.SchedulerApplicationAttempt;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.SchedulerNode;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.SchedulerRequestKey;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.activities.ActivitiesManager;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CSAMContainerLaunchDiagnosticsConstants;
@@ -67,11 +63,16 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.QueueCap
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.SchedulingMode;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.allocator.AbstractContainerAllocator;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.allocator.ContainerAllocator;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.PlacementSet;
 import org.apache.hadoop.yarn.util.resource.DefaultResourceCalculator;
 import org.apache.hadoop.yarn.util.resource.ResourceCalculator;
 import org.apache.hadoop.yarn.util.resource.Resources;
 
-import com.google.common.annotations.VisibleForTesting;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Represents an application attempt from the viewpoint of the FIFO or Capacity
@@ -505,7 +506,7 @@ public class FiCaSchedulerApp extends SchedulerApplicationAttempt {
   }
 
   public CSAssignment assignContainers(Resource clusterResource,
-      FiCaSchedulerNode node, ResourceLimits currentResourceLimits,
+      PlacementSet placementSet, ResourceLimits currentResourceLimits,
       SchedulingMode schedulingMode, RMContainer reservedContainer) {
     if (LOG.isDebugEnabled()) {
       LOG.debug("pre-assignContainers for application "
@@ -514,7 +515,7 @@ public class FiCaSchedulerApp extends SchedulerApplicationAttempt {
     }
 
     synchronized (this) {
-      return containerAllocator.assignContainers(clusterResource, node,
+      return containerAllocator.assignContainers(clusterResource, placementSet,
           schedulingMode, currentResourceLimits, reservedContainer);
     }
   }
@@ -597,7 +598,8 @@ public class FiCaSchedulerApp extends SchedulerApplicationAttempt {
     this.appSkipNodeDiagnostics = message;
   }
 
-  public void updateNodeInfoForAMDiagnostics(FiCaSchedulerNode node) {
+  public void updateNodeInfoForAMDiagnostics(
+      PlacementSet candidates) {
     if (isWaitingForAMContainer()) {
       StringBuilder diagnosticMessageBldr = new StringBuilder();
       if (appSkipNodeDiagnostics != null) {
@@ -606,15 +608,26 @@ public class FiCaSchedulerApp extends SchedulerApplicationAttempt {
       }
       diagnosticMessageBldr.append(
           CSAMContainerLaunchDiagnosticsConstants.LAST_NODE_PROCESSED_MSG);
-      diagnosticMessageBldr.append(node.getNodeID());
-      diagnosticMessageBldr.append(" ( Partition : ");
-      diagnosticMessageBldr.append(node.getLabels());
-      diagnosticMessageBldr.append(", Total resource : ");
-      diagnosticMessageBldr.append(node.getTotalResource());
-      diagnosticMessageBldr.append(", Available resource : ");
-      diagnosticMessageBldr.append(node.getUnallocatedResource());
-      diagnosticMessageBldr.append(" ).");
+
+      SchedulerNode node = candidates.getNextAvailable();
+
+      // TODO, fix this when global scheduling enabled.
+      if (null != node) {
+        diagnosticMessageBldr.append(node.getNodeID());
+        diagnosticMessageBldr.append(" ( Partition : ");
+        diagnosticMessageBldr.append(node.getLabels());
+        diagnosticMessageBldr.append(", Total resource : ");
+        diagnosticMessageBldr.append(node.getTotalResource());
+        diagnosticMessageBldr.append(", Available resource : ");
+        diagnosticMessageBldr.append(node.getUnallocatedResource());
+        diagnosticMessageBldr.append(" ).");
+      }
+
       updateAMContainerDiagnostics(AMState.ACTIVATED, diagnosticMessageBldr.toString());
     }
+  }
+
+  public CapacitySchedulerContext getCapacitySchedulerContext() {
+    return capacitySchedulerContext;
   }
 }

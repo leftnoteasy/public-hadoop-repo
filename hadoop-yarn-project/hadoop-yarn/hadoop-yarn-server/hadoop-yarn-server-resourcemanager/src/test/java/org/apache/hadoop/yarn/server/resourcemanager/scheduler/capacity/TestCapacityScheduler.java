@@ -842,7 +842,7 @@ public class TestCapacityScheduler {
         null, null, null, null);
 
     //And this will result in container assignment for app1
-    CapacityScheduler.schedule(cs);
+    CapacityScheduler.AsyncScheduleThread.asyncSchedule(cs);
 
     //Verify that app1 is still first in assignment order
     //This happens because app2 has no demand/a magnitude of NaN, which
@@ -1046,7 +1046,7 @@ public class TestCapacityScheduler {
     
     // Now directly exercise the scheduling loop
     for (int i=0; i < NODES; ++i) {
-      CapacityScheduler.schedule(cs);
+      CapacityScheduler.AsyncScheduleThread.asyncSchedule(cs);
     }
   }
 
@@ -3511,7 +3511,7 @@ public class TestCapacityScheduler {
           Collections.<ResourceRequest>singletonList(y1Req),
           Collections.<ContainerId>emptyList(),
           null, null, null, null);
-      CapacityScheduler.schedule(cs);
+      CapacityScheduler.AsyncScheduleThread.asyncSchedule(cs);
     }
     assertEquals("Y1 Used Resource should be 4 GB", 4 * GB,
         cs.getQueue("y1").getUsedResources().getMemorySize());
@@ -3525,7 +3525,7 @@ public class TestCapacityScheduler {
           Collections.<ResourceRequest>singletonList(x1Req),
           Collections.<ContainerId>emptyList(),
           null, null, null, null);
-      CapacityScheduler.schedule(cs);
+      CapacityScheduler.AsyncScheduleThread.asyncSchedule(cs);
     }
     assertEquals("X1 Used Resource should be 7 GB", 7 * GB,
         cs.getQueue("x1").getUsedResources().getMemorySize());
@@ -3538,7 +3538,7 @@ public class TestCapacityScheduler {
         Collections.<ResourceRequest>singletonList(x2Req),
         Collections.<ContainerId>emptyList(),
         null, null, null, null);
-    CapacityScheduler.schedule(cs);
+    CapacityScheduler.AsyncScheduleThread.asyncSchedule(cs);
     assertEquals("X2 Used Resource should be 0", 0,
         cs.getQueue("x2").getUsedResources().getMemorySize());
     assertEquals("P1 Used Resource should be 7 GB", 7 * GB,
@@ -3550,7 +3550,7 @@ public class TestCapacityScheduler {
         Collections.<ResourceRequest>singletonList(x1Req),
         Collections.<ContainerId>emptyList(),
         null, null, null, null);
-    CapacityScheduler.schedule(cs);
+    CapacityScheduler.AsyncScheduleThread.asyncSchedule(cs);
     assertEquals("X1 Used Resource should be 7 GB", 7 * GB,
         cs.getQueue("x1").getUsedResources().getMemorySize());
     assertEquals("P1 Used Resource should be 7 GB", 7 * GB,
@@ -3564,7 +3564,7 @@ public class TestCapacityScheduler {
           Collections.<ResourceRequest>singletonList(y1Req),
           Collections.<ContainerId>emptyList(),
           null, null, null, null);
-      CapacityScheduler.schedule(cs);
+      CapacityScheduler.AsyncScheduleThread.asyncSchedule(cs);
     }
     assertEquals("P2 Used Resource should be 8 GB", 8 * GB,
         cs.getQueue("p2").getUsedResources().getMemorySize());
@@ -3574,7 +3574,7 @@ public class TestCapacityScheduler {
     cs.handle(new ContainerExpiredSchedulerEvent(containerId));
 
     //Schedule pending request
-    CapacityScheduler.schedule(cs);
+    CapacityScheduler.AsyncScheduleThread.asyncSchedule(cs);
     assertEquals("X2 Used Resource should be 2 GB", 2 * GB,
         cs.getQueue("x2").getUsedResources().getMemorySize());
     assertEquals("P1 Used Resource should be 8 GB", 8 * GB,
@@ -3623,7 +3623,7 @@ public class TestCapacityScheduler {
     cs.allocate(appAttemptId1, Collections.<ResourceRequest>singletonList(r1),
         Collections.<ContainerId>emptyList(),
         null, null, null, null).getContainers().size();
-    CapacityScheduler.schedule(cs);
+    CapacityScheduler.AsyncScheduleThread.asyncSchedule(cs);
     ResourceRequest r2 = null;
     for (int i =0; i < 13; i++) {
       r2 = TestUtils.createResourceRequest(
@@ -3632,7 +3632,7 @@ public class TestCapacityScheduler {
           Collections.<ResourceRequest>singletonList(r2),
           Collections.<ContainerId>emptyList(),
           null, null, null, null);
-      CapacityScheduler.schedule(cs);
+      CapacityScheduler.AsyncScheduleThread.asyncSchedule(cs);
     }
     assertEquals("A Used Resource should be 2 GB", 2 * GB,
         cs.getQueue("a").getUsedResources().getMemorySize());
@@ -3645,11 +3645,11 @@ public class TestCapacityScheduler {
     cs.allocate(appAttemptId1, Collections.<ResourceRequest>singletonList(r1),
         Collections.<ContainerId>emptyList(),
         null, null, null, null).getContainers().size();
-    CapacityScheduler.schedule(cs);
+    CapacityScheduler.AsyncScheduleThread.asyncSchedule(cs);
 
     cs.allocate(appAttemptId2, Collections.<ResourceRequest>singletonList(r2),
         Collections.<ContainerId>emptyList(), null, null, null, null);
-    CapacityScheduler.schedule(cs);
+    CapacityScheduler.AsyncScheduleThread.asyncSchedule(cs);
     //Check blocked Resource
     assertEquals("A Used Resource should be 2 GB", 2 * GB,
         cs.getQueue("a").getUsedResources().getMemorySize());
@@ -3661,10 +3661,10 @@ public class TestCapacityScheduler {
 
     cs.handle(new ContainerExpiredSchedulerEvent(containerId1));
     rm.drainEvents();
-    CapacityScheduler.schedule(cs);
+    CapacityScheduler.AsyncScheduleThread.asyncSchedule(cs);
 
     cs.handle(new ContainerExpiredSchedulerEvent(containerId2));
-    CapacityScheduler.schedule(cs);
+    CapacityScheduler.AsyncScheduleThread.asyncSchedule(cs);
     rm.drainEvents();
 
     assertEquals("A Used Resource should be 4 GB", 4 * GB,

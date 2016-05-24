@@ -202,6 +202,14 @@ public class CapacitySchedulerConfiguration extends ReservationSchedulerConfigur
       SCHEDULE_ASYNCHRONOUSLY_PREFIX + ".enable";
 
   @Private
+  public static final String SCHEDULE_GLOBALLY_PREFIX =
+      PREFIX + "schedule-globally";
+
+  @Private
+  public static final String SCHEDULE_GLOBALLY_ENABLE =
+      SCHEDULE_GLOBALLY_PREFIX + ".enable";
+
+  @Private
   public static final boolean DEFAULT_SCHEDULE_ASYNCHRONOUSLY_ENABLE = false;
 
   @Private

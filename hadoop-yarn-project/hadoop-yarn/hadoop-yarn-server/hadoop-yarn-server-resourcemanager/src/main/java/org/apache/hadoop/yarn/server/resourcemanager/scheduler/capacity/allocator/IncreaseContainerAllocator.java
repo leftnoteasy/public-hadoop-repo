@@ -41,6 +41,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.SchedulerRequestK
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.SchedulerNode;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CSAssignment;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.SchedulingMode;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.PlacementSet;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.fica.FiCaSchedulerApp;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.fica.FiCaSchedulerNode;
 import org.apache.hadoop.yarn.util.resource.ResourceCalculator;
@@ -175,17 +176,23 @@ public class IncreaseContainerAllocator extends AbstractContainerAllocator {
 
   @Override
   public CSAssignment assignContainers(Resource clusterResource,
-      FiCaSchedulerNode node, SchedulingMode schedulingMode,
+      PlacementSet placementSet, SchedulingMode schedulingMode,
       ResourceLimits resourceLimits, RMContainer reservedContainer) {
     AppSchedulingInfo sinfo = application.getAppSchedulingInfo();
-    NodeId nodeId = node.getNodeID();
+    if (null == placementSet.getNextAvailable()) {
+      // TODO, fix IncreaseContainerAllocator to be able to schedule for
+      // global scheduling
+      return CSAssignment.SKIP_ASSIGNMENT;
+    }
+
+    NodeId nodeId = placementSet.getNextAvailable().getNodeID();
 
     if (reservedContainer == null) {
       // Do we have increase request on this node?
       if (!sinfo.hasIncreaseRequest(nodeId)) {
         if (LOG.isDebugEnabled()) {
           LOG.debug("Skip allocating increase request since we don't have any"
-              + " increase request on this node=" + node.getNodeID());
+              + " increase request on this node=" + nodeId);
         }
         
         return CSAssignment.SKIP_ASSIGNMENT;
@@ -294,7 +301,8 @@ public class IncreaseContainerAllocator extends AbstractContainerAllocator {
           }
 
           if (!Resources.fitsIn(rc, clusterResource,
-              increaseRequest.getTargetCapacity(), node.getTotalResource())) {
+              increaseRequest.getTargetCapacity(),
+              placementSet.getNextAvailable().getTotalResource())) {
             // if the target capacity is more than what the node can offer, we
             // will simply remove and skip it.
             // The reason of doing check here instead of adding increase request
@@ -302,17 +310,19 @@ public class IncreaseContainerAllocator extends AbstractContainerAllocator {
             // request added.
             if (LOG.isDebugEnabled()) {
               LOG.debug("  Target capacity is more than what node can offer,"
-                  + " node.resource=" + node.getTotalResource());
+                  + " node.resource=" + placementSet.getNextAvailable()
+                  .getTotalResource());
             }
             toBeRemovedRequests.add(increaseRequest);
             continue;
           }
 
           // Try to allocate the increase request
-          assigned =
-              allocateIncreaseRequest(node, clusterResource, increaseRequest);
-          if (assigned.getSkippedType()
-              == CSAssignment.SkippedType.NONE) {
+          assigned = allocateIncreaseRequest(
+              (FiCaSchedulerNode) placementSet.getNextAvailable(),
+              clusterResource,
+              increaseRequest);
+          if (assigned.getSkippedType() == CSAssignment.SkippedType.NONE) {
             // When we don't skip this request, which means we either allocated
             // OR reserved this request. We will break
             break;
@@ -364,9 +374,9 @@ public class IncreaseContainerAllocator extends AbstractContainerAllocator {
         // We don't need this container now, just return excessive reservation
         return new CSAssignment(application, reservedContainer);
       }
-      
-      return allocateIncreaseRequestFromReservedContainer(node, clusterResource,
-          request);
+
+      return allocateIncreaseRequestFromReservedContainer(
+          placementSet.getNextAvailable(), clusterResource, request);
     }
   }
 }

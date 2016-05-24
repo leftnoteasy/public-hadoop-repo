@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.locks.Lock;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -136,7 +137,6 @@ public abstract class AbstractYarnScheduler
     super.serviceInit(conf);
   }
 
-  @VisibleForTesting
   public ClusterNodeTracker getNodeTracker() {
     return nodeTracker;
   }

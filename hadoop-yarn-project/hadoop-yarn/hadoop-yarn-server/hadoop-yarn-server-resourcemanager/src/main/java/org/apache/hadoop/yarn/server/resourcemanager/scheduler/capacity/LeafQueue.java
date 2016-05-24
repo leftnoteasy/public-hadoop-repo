@@ -63,6 +63,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.activities.Activi
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.activities.ActivityState;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.SchedulerApplicationAttempt.AMState;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.preemption.KillableContainer;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.PlacementSet;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.fica.FiCaSchedulerApp;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.fica.FiCaSchedulerNode;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.policy.FifoOrderingPolicyForPendingApps;
@@ -803,9 +804,12 @@ public class LeafQueue extends AbstractCSQueue {
   }
   
   private void handleExcessReservedContainer(Resource clusterResource,
-      CSAssignment assignment, FiCaSchedulerNode node, FiCaSchedulerApp app) {
+      CSAssignment assignment) {
     if (assignment.getExcessReservation() != null) {
       RMContainer excessReservedContainer = assignment.getExcessReservation();
+      FiCaSchedulerNode node = csContext.getNode(
+          excessReservedContainer.getReservedNode());
+      FiCaSchedulerApp app = assignment.getApplication();
       
       if (excessReservedContainer.hasIncreaseReservation()) {
         unreserveIncreasedContainer(clusterResource,
@@ -825,7 +829,6 @@ public class LeafQueue extends AbstractCSQueue {
   }
 
   private void killToPreemptContainers(Resource clusterResource,
-      FiCaSchedulerNode node,
       CSAssignment assignment) {
     if (assignment.getContainersToKill() != null) {
       StringBuilder sb = new StringBuilder("Killing containers: [");
@@ -834,6 +837,7 @@ public class LeafQueue extends AbstractCSQueue {
         FiCaSchedulerApp application = csContext.getApplicationAttempt(
             c.getApplicationAttemptId());
         LeafQueue q = application.getCSLeafQueue();
+        FiCaSchedulerNode node = csContext.getNode(c.getAllocatedNode());
         q.completedContainer(clusterResource, application, node, c, SchedulerUtils
                 .createPreemptedContainerStatus(c.getContainerId(),
                     SchedulerUtils.PREEMPTED_CONTAINER), RMContainerEventType.KILL,
@@ -858,42 +862,61 @@ public class LeafQueue extends AbstractCSQueue {
     limits.setIsAllowPreemption(usedCapacity < guaranteedCapacity);
   }
 
-  @Override
-  public synchronized CSAssignment assignContainers(Resource clusterResource,
-      FiCaSchedulerNode node, ResourceLimits currentResourceLimits,
-      SchedulingMode schedulingMode) {
-    updateCurrentResourceLimits(currentResourceLimits, clusterResource);
-
-    if (LOG.isDebugEnabled()) {
-      LOG.debug("assignContainers: node=" + node.getNodeName()
-          + " #applications=" + orderingPolicy.getNumSchedulableEntities());
+  private synchronized CSAssignment handleReservedContainer(
+      Resource clusterResource, PlacementSet placementSet,
+      ResourceLimits currentResourceLimits, SchedulingMode schedulingMode) {
+    FiCaSchedulerNode node =
+        (FiCaSchedulerNode) placementSet.getNextAvailable();
+    if (null == node) {
+      return null;
     }
 
-    setPreemptionAllowed(currentResourceLimits, node.getPartition());
-
-    // Check for reserved resources
     RMContainer reservedContainer = node.getReservedContainer();
     if (reservedContainer != null) {
-      FiCaSchedulerApp application =
-          getApplication(reservedContainer.getApplicationAttemptId());
+      FiCaSchedulerApp application = getApplication(
+          reservedContainer.getApplicationAttemptId());
 
       ActivitiesLogger.APP.startAppAllocationRecording(activitiesManager,
           node.getNodeID(), SystemClock.getInstance().getTime(), application);
-
       synchronized (application) {
-        CSAssignment assignment =
-            application.assignContainers(clusterResource, node,
-                currentResourceLimits, schedulingMode, reservedContainer);
-        handleExcessReservedContainer(clusterResource, assignment, node,
-            application);
-        killToPreemptContainers(clusterResource, node, assignment);
+        CSAssignment assignment = application.assignContainers(clusterResource,
+            placementSet, currentResourceLimits, schedulingMode,
+            reservedContainer);
+        handleExcessReservedContainer(clusterResource, assignment);
+        killToPreemptContainers(clusterResource, assignment);
         return assignment;
       }
     }
 
+    return null;
+  }
+
+  @Override
+  public synchronized CSAssignment assignContainers(Resource clusterResource,
+      PlacementSet placementSet, ResourceLimits currentResourceLimits,
+      SchedulingMode schedulingMode) {
+    updateCurrentResourceLimits(currentResourceLimits, clusterResource);
+    SchedulerNode node = placementSet.getNextAvailable();
+
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("assignContainers: nodePartition=" + placementSet
+          .getPartition() + " #applications=" + orderingPolicy
+          .getNumSchedulableEntities());
+    }
+
+    setPreemptionAllowed(currentResourceLimits,
+        placementSet.getPartition());
+
+    // Check for reserved resources=
+    CSAssignment assignment = handleReservedContainer(clusterResource,
+        placementSet, currentResourceLimits, schedulingMode);
+    if (null != assignment) {
+      return assignment;
+    }
+
     // if our queue cannot access this node, just return
     if (schedulingMode == SchedulingMode.RESPECT_PARTITION_EXCLUSIVITY
-        && !accessibleToPartition(node.getPartition())) {
+        && !accessibleToPartition(placementSet.getPartition())) {
       ActivitiesLogger.QUEUE.recordQueueActivity(activitiesManager, node,
           getParent().getQueueName(), getQueueName(), ActivityState.REJECTED,
           ActivityDiagnosticConstant.NOT_ABLE_TO_ACCESS_PARTITION + node
@@ -903,12 +926,12 @@ public class LeafQueue extends AbstractCSQueue {
 
     // Check if this queue need more resource, simply skip allocation if this
     // queue doesn't need more resources.
-    if (!hasPendingResourceRequest(node.getPartition(), clusterResource,
-        schedulingMode)) {
+    if (!hasPendingResourceRequest(placementSet.getPartition(),
+        clusterResource, schedulingMode)) {
       if (LOG.isDebugEnabled()) {
         LOG.debug("Skip this queue=" + getQueuePath()
             + ", because it doesn't need more resource, schedulingMode="
-            + schedulingMode.name() + " node-partition=" + node.getPartition());
+            + schedulingMode.name() + " node-partition=" + placementSet.getPartition());
       }
       ActivitiesLogger.QUEUE.recordQueueActivity(activitiesManager, node,
           getParent().getQueueName(), getQueueName(), ActivityState.SKIPPED,
@@ -924,7 +947,7 @@ public class LeafQueue extends AbstractCSQueue {
           node.getNodeID(), SystemClock.getInstance().getTime(), application);
 
       // Check queue max-capacity limit
-      if (!super.canAssignToThisQueue(clusterResource, node.getPartition(),
+      if (!super.canAssignToThisQueue(clusterResource, placementSet.getPartition(),
           currentResourceLimits, application.getCurrentReservation(),
           schedulingMode)) {
         ActivitiesLogger.APP.recordRejectedAppActivityFromLeafQueue(
@@ -939,11 +962,11 @@ public class LeafQueue extends AbstractCSQueue {
 
       Resource userLimit =
           computeUserLimitAndSetHeadroom(application, clusterResource,
-              node.getPartition(), schedulingMode);
+              placementSet.getPartition(), schedulingMode);
 
       // Check user limit
       if (!canAssignToUser(clusterResource, application.getUser(), userLimit,
-          application, node.getPartition(), currentResourceLimits)) {
+          application, placementSet.getPartition(), currentResourceLimits)) {
         application.updateAMContainerDiagnostics(AMState.ACTIVATED,
             "User capacity has reached its maximum limit.");
         ActivitiesLogger.APP.recordRejectedAppActivityFromLeafQueue(
@@ -954,9 +977,7 @@ public class LeafQueue extends AbstractCSQueue {
       }
 
       // Try to schedule
-      CSAssignment assignment =
-          application.assignContainers(clusterResource, node,
-              currentResourceLimits, schedulingMode, null);
+      assignment = application.assignContainers(clusterResource, placementSet, currentResourceLimits, schedulingMode, null);
 
       if (LOG.isDebugEnabled()) {
         LOG.debug("post-assignContainers for application "
@@ -967,9 +988,8 @@ public class LeafQueue extends AbstractCSQueue {
       // Did we schedule or reserve a container?
       Resource assigned = assignment.getResource();
       
-      handleExcessReservedContainer(clusterResource, assignment, node,
-          application);
-      killToPreemptContainers(clusterResource, node, assignment);
+      handleExcessReservedContainer(clusterResource, assignment);
+      killToPreemptContainers(clusterResource, assignment);
 
       if (Resources.greaterThan(resourceCalculator, clusterResource, assigned,
           Resources.none())) {
@@ -981,14 +1001,14 @@ public class LeafQueue extends AbstractCSQueue {
         // Book-keeping
         // Note: Update headroom to account for current allocation too...
         allocateResource(clusterResource, application, assigned,
-            node.getPartition(), reservedOrAllocatedRMContainer,
+            placementSet.getPartition(), reservedOrAllocatedRMContainer,
             assignment.isIncreasedAllocation());
 
         // Update reserved metrics
         Resource reservedRes = assignment.getAssignmentInformation()
             .getReserved();
         if (reservedRes != null && !reservedRes.equals(Resources.none())) {
-          incReservedResource(node.getPartition(), reservedRes);
+          incReservedResource(placementSet.getPartition(), reservedRes);
         }
 
         ActivitiesLogger.QUEUE.recordQueueActivity(activitiesManager, node,
@@ -1002,7 +1022,7 @@ public class LeafQueue extends AbstractCSQueue {
         ActivitiesLogger.APP.finishSkippedAppAllocationRecording(
             activitiesManager, application.getApplicationId(),
             ActivityState.SKIPPED, ActivityDiagnosticConstant.EMPTY);
-        application.updateNodeInfoForAMDiagnostics(node);
+        application.updateNodeInfoForAMDiagnostics(placementSet);
       } else if(assignment.getSkippedType()
           == CSAssignment.SkippedType.QUEUE_LIMIT) {
         return assignment;

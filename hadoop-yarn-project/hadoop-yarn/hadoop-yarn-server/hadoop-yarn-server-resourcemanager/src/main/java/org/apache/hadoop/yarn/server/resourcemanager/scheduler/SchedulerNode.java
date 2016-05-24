@@ -72,6 +72,9 @@ public abstract class SchedulerNode {
 
   private volatile Set<String> labels = null;
 
+  // What's the latest time that this node visited by scheduler
+  protected volatile long latestVisitedTimestamp = -1;
+
   public SchedulerNode(RMNode node, boolean usePortForNodeName,
       Set<String> labels) {
     this.rmNode = node;
@@ -431,5 +434,9 @@ public abstract class SchedulerNode {
    */
   public ResourceUtilization getNodeUtilization() {
     return this.nodeUtilization;
+  }
+
+  public long getLatestVisitedTimestamp() {
+    return this.latestVisitedTimestamp;
   }
 }

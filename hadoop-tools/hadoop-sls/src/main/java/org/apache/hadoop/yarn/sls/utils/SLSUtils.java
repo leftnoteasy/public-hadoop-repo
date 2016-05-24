@@ -51,7 +51,7 @@ public class SLSUtils {
   // {"default-rack", "hostFoo"} or "coreSwitchA/TORSwitchB", "hostBar"
   public static String[] getRackHostName(String hostname) {
     NodeBase node = new NodeBase(hostname);
-    return new String[] {node.getNetworkLocation().substring(1),
+    return new String[] {"/" + node.getNetworkLocation().substring(1),
         node.getName()};
   }
 
