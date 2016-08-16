@@ -486,7 +486,7 @@ public class FifoScheduler extends
     }
 
     // Clean up pending requests, metrics etc.
-    attempt.stop(rmAppAttemptFinalState);
+    attempt.stop();
   }
   
   /**

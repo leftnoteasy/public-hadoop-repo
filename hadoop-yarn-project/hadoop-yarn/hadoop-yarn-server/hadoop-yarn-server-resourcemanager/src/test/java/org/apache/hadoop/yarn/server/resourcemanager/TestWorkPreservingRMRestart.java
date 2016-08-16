@@ -449,7 +449,7 @@ public class TestWorkPreservingRMRestart extends ParameterizedSchedulerTestBase 
     assertEquals(absoluteUsedCapacity, leafQueue.getAbsoluteUsedCapacity(),
       1e-8);
     // assert user consumed resources.
-    assertEquals(usedResource, leafQueue.getUser(app.getUser())
+    assertEquals(usedResource, leafQueue.getOrDefault(app.getUser())
       .getUsed());
   }
 

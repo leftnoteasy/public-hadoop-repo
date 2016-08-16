@@ -248,7 +248,7 @@ public class ProportionalCapacityPreemptionPolicyMockFramework {
             .isEmpty()) {
           LeafQueue queue = (LeafQueue) nameToCSQueues.get(queueName);
           Map<String, TreeSet<RMContainer>> ignoreExclusivityContainers =
-              queue.getIgnoreExclusivityRMContainers();
+              queue.getCopyOfIgnoreExclusivityRMContainers();
           if (!ignoreExclusivityContainers.containsKey(partition)) {
             ignoreExclusivityContainers.put(partition,
                 new TreeSet<RMContainer>());
@@ -450,7 +450,7 @@ public class ProportionalCapacityPreemptionPolicyMockFramework {
 
         Map<String, TreeSet<RMContainer>> ignorePartitionContainers =
             new HashMap<>();
-        when(leafQueue.getIgnoreExclusivityRMContainers()).thenReturn(
+        when(leafQueue.getCopyOfIgnoreExclusivityRMContainers()).thenReturn(
             ignorePartitionContainers);
         queue = leafQueue;
       }

@@ -110,7 +110,7 @@ public class TestProportionalCapacityPreemptionPolicyMockFramework
 
     // Check ignored partitioned containers in queue
     Assert.assertEquals(100, ((LeafQueue) cs.getQueue("a1"))
-        .getIgnoreExclusivityRMContainers().get("blue").size());
+        .getCopyOfIgnoreExclusivityRMContainers().get("blue").size());
 
     // Check applications
     Assert.assertEquals(2, ((LeafQueue)cs.getQueue("a1")).getApplications().size());

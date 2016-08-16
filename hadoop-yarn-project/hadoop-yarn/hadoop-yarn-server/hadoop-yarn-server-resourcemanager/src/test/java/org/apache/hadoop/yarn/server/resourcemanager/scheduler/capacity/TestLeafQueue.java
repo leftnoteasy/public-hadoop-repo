@@ -412,7 +412,7 @@ public class TestLeafQueue {
 
     assertEquals(1, a.getMetrics().getAppsSubmitted());
     assertEquals(1, a.getMetrics().getAppsPending());
-    assertEquals(1, a.getUser(user_0).getActiveApplications());
+    assertEquals(1, a.getOrDefault(user_0).getActiveApplications());
     assertEquals(app_1.getAMResource().getMemorySize(), a.getMetrics()
         .getUsedAMResourceMB());
     assertEquals(app_1.getAMResource().getVirtualCores(), a.getMetrics()

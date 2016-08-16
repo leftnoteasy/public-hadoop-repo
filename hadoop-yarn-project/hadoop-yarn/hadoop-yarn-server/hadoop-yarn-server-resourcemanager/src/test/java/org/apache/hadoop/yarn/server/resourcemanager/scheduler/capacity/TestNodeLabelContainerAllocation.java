@@ -1218,16 +1218,16 @@ public class TestNodeLabelContainerAllocation {
 
     // check non-exclusive containers of LeafQueue is correctly updated
     LeafQueue leafQueue = (LeafQueue) cs.getQueue("a");
-    Assert.assertFalse(leafQueue.getIgnoreExclusivityRMContainers().containsKey(
+    Assert.assertFalse(leafQueue.getCopyOfIgnoreExclusivityRMContainers().containsKey(
         "y"));
     Assert.assertEquals(10,
-        leafQueue.getIgnoreExclusivityRMContainers().get("x").size());
+        leafQueue.getCopyOfIgnoreExclusivityRMContainers().get("x").size());
 
     // completes all containers of app1, ignoreExclusivityRMContainers should be
     // updated as well.
     cs.handle(new AppAttemptRemovedSchedulerEvent(
         am1.getApplicationAttemptId(), RMAppAttemptState.FINISHED, false));
-    Assert.assertFalse(leafQueue.getIgnoreExclusivityRMContainers().containsKey(
+    Assert.assertFalse(leafQueue.getCopyOfIgnoreExclusivityRMContainers().containsKey(
         "x"));
 
     rm1.close();

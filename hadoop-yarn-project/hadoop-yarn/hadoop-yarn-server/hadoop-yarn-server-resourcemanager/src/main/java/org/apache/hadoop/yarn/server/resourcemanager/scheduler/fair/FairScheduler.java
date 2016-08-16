@@ -824,7 +824,7 @@ public class FairScheduler extends
               RMContainerEventType.KILL);
     }
     // Clean up pending requests, metrics etc.
-    attempt.stop(rmAppAttemptFinalState);
+    attempt.stop();
 
     // Inform the queue
     FSLeafQueue queue = queueMgr.getLeafQueue(attempt.getQueue()

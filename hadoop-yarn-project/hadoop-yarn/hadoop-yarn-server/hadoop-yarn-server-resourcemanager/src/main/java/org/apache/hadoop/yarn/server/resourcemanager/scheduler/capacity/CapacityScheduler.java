@@ -932,7 +932,7 @@ public class CapacityScheduler extends
     }
 
     // Clean up pending requests, metrics etc.
-    attempt.stop(rmAppAttemptFinalState);
+    attempt.stop();
 
     // Inform the queue
     String queueName = attempt.getQueue().getQueueName();

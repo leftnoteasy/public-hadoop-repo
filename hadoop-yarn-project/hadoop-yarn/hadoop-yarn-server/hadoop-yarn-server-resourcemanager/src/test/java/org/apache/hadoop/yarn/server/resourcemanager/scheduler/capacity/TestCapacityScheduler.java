@@ -2951,7 +2951,7 @@ public class TestCapacityScheduler {
     LeafQueue queueA =
         (LeafQueue) ((CapacityScheduler) scheduler).getQueue(queueName);
     assertEquals("Minimum Resource for AM is incorrect", minAllocResource,
-        queueA.getUser("user_0").getResourceUsage().getAMUsed());
+        queueA.getOrDefault("user_0").getResourceUsage().getAMUsed());
     rm.stop();
   }
 
@@ -3305,9 +3305,9 @@ public class TestCapacityScheduler {
         queueA.getNumActiveApplications());
 
     Assert.assertEquals("User PendingApplications should be 1", 1, queueA
-        .getUser(userName).getPendingApplications());
+        .getOrDefault(userName).getPendingApplications());
     Assert.assertEquals("User Active applications should be 1", 1, queueA
-        .getUser(userName).getActiveApplications());
+        .getOrDefault(userName).getActiveApplications());
     rm.stop();
   }
 

@@ -294,7 +294,7 @@ public class TestContainerResizing {
     // Queue/user/application's usage will be updated
     checkUsedResource(rm1, "default", 9 * GB, null);
     Assert.assertEquals(9 * GB, ((LeafQueue) cs.getQueue("default"))
-        .getUser("user").getUsed().getMemorySize());
+        .getOrDefault("user").getUsed().getMemorySize());
     Assert.assertEquals(3 * GB,
         app.getAppAttemptResourceUsage().getUsed().getMemorySize());
     Assert.assertEquals(6 * GB,
@@ -319,7 +319,7 @@ public class TestContainerResizing {
     // Queue/user/application's usage will be updated
     checkUsedResource(rm1, "default", 7 * GB, null);
     Assert.assertEquals(7 * GB, ((LeafQueue) cs.getQueue("default"))
-        .getUser("user").getUsed().getMemorySize());
+        .getOrDefault("user").getUsed().getMemorySize());
     Assert.assertEquals(0 * GB,
         app.getAppAttemptResourceUsage().getReserved().getMemorySize());
     Assert.assertEquals(7 * GB,
@@ -394,7 +394,7 @@ public class TestContainerResizing {
     // Queue/user/application's usage will *NOT* be updated
     checkUsedResource(rm1, "default", 3 * GB, null);
     Assert.assertEquals(3 * GB, ((LeafQueue) cs.getQueue("default"))
-            .getUser("user").getUsed().getMemorySize());
+            .getOrDefault("user").getUsed().getMemorySize());
     Assert.assertEquals(3 * GB,
         app.getAppAttemptResourceUsage().getUsed().getMemorySize());
     Assert.assertEquals(0 * GB,
@@ -475,7 +475,7 @@ public class TestContainerResizing {
     // Queue/user/application's usage will be updated
     checkUsedResource(rm1, "default", 9 * GB, null);
     Assert.assertEquals(9 * GB, ((LeafQueue) cs.getQueue("default"))
-        .getUser("user").getUsed().getMemorySize());
+        .getOrDefault("user").getUsed().getMemorySize());
     Assert.assertEquals(3 * GB,
         app.getAppAttemptResourceUsage().getUsed().getMemorySize());
     Assert.assertEquals(6 * GB,
@@ -505,7 +505,7 @@ public class TestContainerResizing {
     // Queue/user/application's usage will be updated
     checkUsedResource(rm1, "default", 1 * GB, null);
     Assert.assertEquals(1 * GB, ((LeafQueue) cs.getQueue("default"))
-        .getUser("user").getUsed().getMemorySize());
+        .getOrDefault("user").getUsed().getMemorySize());
     Assert.assertEquals(0 * GB,
         app.getAppAttemptResourceUsage().getReserved().getMemorySize());
     Assert.assertEquals(1 * GB,
@@ -587,7 +587,7 @@ public class TestContainerResizing {
     // Queue/user/application's usage will be updated
     checkUsedResource(rm1, "default", 10 * GB, null);
     Assert.assertEquals(10 * GB, ((LeafQueue) cs.getQueue("default"))
-        .getUser("user").getUsed().getMemorySize());
+        .getOrDefault("user").getUsed().getMemorySize());
     Assert.assertEquals(4 * GB,
         app.getAppAttemptResourceUsage().getUsed().getMemorySize());
     Assert.assertEquals(6 * GB,
@@ -615,7 +615,7 @@ public class TestContainerResizing {
     // Queue/user/application's usage will be updated
     checkUsedResource(rm1, "default", 1 * GB, null);
     Assert.assertEquals(1 * GB, ((LeafQueue) cs.getQueue("default"))
-        .getUser("user").getUsed().getMemorySize());
+        .getOrDefault("user").getUsed().getMemorySize());
     Assert.assertEquals(0 * GB,
         app.getAppAttemptResourceUsage().getReserved().getMemorySize());
     Assert.assertEquals(1 * GB,
@@ -696,7 +696,7 @@ public class TestContainerResizing {
     // Queue/user/application's usage will be updated
     checkUsedResource(rm1, "default", 9 * GB, null);
     Assert.assertEquals(9 * GB, ((LeafQueue) cs.getQueue("default"))
-        .getUser("user").getUsed().getMemorySize());
+        .getOrDefault("user").getUsed().getMemorySize());
     Assert.assertEquals(3 * GB,
         app.getAppAttemptResourceUsage().getUsed().getMemorySize());
     Assert.assertEquals(6 * GB,
@@ -717,7 +717,7 @@ public class TestContainerResizing {
     // Queue/user/application's usage will be updated
     checkUsedResource(rm1, "default", 1 * GB, null);
     Assert.assertEquals(1 * GB, ((LeafQueue) cs.getQueue("default"))
-        .getUser("user").getUsed().getMemorySize());
+        .getOrDefault("user").getUsed().getMemorySize());
     Assert.assertEquals(0 * GB,
         app.getAppAttemptResourceUsage().getReserved().getMemorySize());
     Assert.assertEquals(1 * GB,
@@ -793,7 +793,7 @@ public class TestContainerResizing {
     // Queue/user/application's usage will be updated
     checkUsedResource(rm1, "default", 9 * GB, null);
     Assert.assertEquals(9 * GB, ((LeafQueue) cs.getQueue("default"))
-        .getUser("user").getUsed().getMemorySize());
+        .getOrDefault("user").getUsed().getMemorySize());
     Assert.assertEquals(3 * GB,
         app.getAppAttemptResourceUsage().getUsed().getMemorySize());
     Assert.assertEquals(6 * GB,
@@ -815,7 +815,7 @@ public class TestContainerResizing {
     // Queue/user/application's usage will be updated
     checkUsedResource(rm1, "default", 0 * GB, null);
     Assert.assertEquals(0 * GB, ((LeafQueue) cs.getQueue("default"))
-        .getUser("user").getUsed().getMemorySize());
+        .getOrDefault("user").getUsed().getMemorySize());
     Assert.assertEquals(0 * GB,
         app.getAppAttemptResourceUsage().getReserved().getMemorySize());
     Assert.assertEquals(0 * GB,
@@ -920,7 +920,7 @@ public class TestContainerResizing {
     // Queue/user/application's usage will be updated
     checkUsedResource(rm1, "default", 10 * GB, null);
     Assert.assertEquals(10 * GB, ((LeafQueue) cs.getQueue("default"))
-        .getUser("user").getUsed().getMemorySize());
+        .getOrDefault("user").getUsed().getMemorySize());
     Assert.assertEquals(0 * GB,
         app.getAppAttemptResourceUsage().getReserved().getMemorySize());
     Assert.assertEquals(10 * GB,
@@ -1001,7 +1001,7 @@ public class TestContainerResizing {
     // Queue/user/application's usage will be updated
     checkUsedResource(rm1, "default", 10 * GB, null);
     Assert.assertEquals(10 * GB, ((LeafQueue) cs.getQueue("default"))
-        .getUser("user").getUsed().getMemorySize());
+        .getOrDefault("user").getUsed().getMemorySize());
     Assert.assertEquals(0 * GB,
         app.getAppAttemptResourceUsage().getReserved().getMemorySize());
     Assert.assertEquals(10 * GB,

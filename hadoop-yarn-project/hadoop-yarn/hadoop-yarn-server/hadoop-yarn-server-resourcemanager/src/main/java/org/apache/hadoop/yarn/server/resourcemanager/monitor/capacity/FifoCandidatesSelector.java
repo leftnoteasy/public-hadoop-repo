@@ -98,7 +98,7 @@ public class FifoCandidatesSelector
         // go through all ignore-partition-exclusivity containers first to make
         // sure such containers will be preemptionCandidates first
         Map<String, TreeSet<RMContainer>> ignorePartitionExclusivityContainers =
-            leafQueue.getIgnoreExclusivityRMContainers();
+            leafQueue.getCopyOfIgnoreExclusivityRMContainers();
         for (String partition : resToObtainByPartition.keySet()) {
           if (ignorePartitionExclusivityContainers.containsKey(partition)) {
             TreeSet<RMContainer> rmContainers =

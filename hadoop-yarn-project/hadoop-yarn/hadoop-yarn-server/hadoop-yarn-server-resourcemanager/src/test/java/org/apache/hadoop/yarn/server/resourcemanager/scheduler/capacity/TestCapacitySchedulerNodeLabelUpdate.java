@@ -135,7 +135,7 @@ public class TestCapacitySchedulerNodeLabelUpdate {
       String userName, String partition, int memory) {
     CapacityScheduler scheduler = (CapacityScheduler) rm.getResourceScheduler();
     LeafQueue queue = (LeafQueue) scheduler.getQueue(queueName);
-    LeafQueue.User user = queue.getUser(userName);
+    LeafQueue.User user = queue.getOrDefault(userName);
     Assert.assertEquals(memory,
         user.getResourceUsage().getUsed(partition).getMemorySize());
   }
