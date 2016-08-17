@@ -466,7 +466,7 @@ public class TestNodeLabelContainerAllocation {
     rm1.close();
   }
 
-  @Test (timeout = 120000)
+  @Test (timeout = 240000)
   public void testContainerReservationWithLabels() throws Exception {
     // This test is pretty much similar to testContainerAllocateWithLabel.
     // Difference is, this test doesn't specify label expression in
@@ -731,13 +731,22 @@ public class TestNodeLabelContainerAllocation {
   
   private void checkNumOfContainersInAnAppOnGivenNode(int expectedNum,
       NodeId nodeId, FiCaSchedulerApp app) {
-    int num = 0;
-    for (RMContainer container : app.getLiveContainers()) {
-      if (container.getAllocatedNode().equals(nodeId)) {
-        num++;
+    long start = System.currentTimeMillis();
+    while (true) {
+      int num = 0;
+      for (RMContainer container : app.getLiveContainers()) {
+        if (container.getAllocatedNode().equals(nodeId)) {
+          num++;
+        }
+      }
+      if (expectedNum == num) {
+        return;
+      } else {
+        if (System.currentTimeMillis() - start > 2000) {
+          Assert.assertEquals(expectedNum, num);
+        }
       }
     }
-    Assert.assertEquals(expectedNum, num);
   }
   
   @Test

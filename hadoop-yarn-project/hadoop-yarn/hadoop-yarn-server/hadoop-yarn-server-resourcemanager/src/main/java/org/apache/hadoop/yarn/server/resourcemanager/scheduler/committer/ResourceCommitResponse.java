@@ -3,8 +3,8 @@ package org.apache.hadoop.yarn.server.resourcemanager.scheduler.committer;
 import java.util.List;
 
 public class ResourceCommitResponse {
-  List<ResourceCommitRequest> acceptedAllocations;
-  List<ResourceCommitRequest> rejectedAllocations;
+  private List<ResourceCommitRequest> acceptedAllocations;
+  private List<ResourceCommitRequest> rejectedAllocations;
 
   public ResourceCommitResponse(List<ResourceCommitRequest> acceptedAllocations,
       List<ResourceCommitRequest> rejectedAllocations) {

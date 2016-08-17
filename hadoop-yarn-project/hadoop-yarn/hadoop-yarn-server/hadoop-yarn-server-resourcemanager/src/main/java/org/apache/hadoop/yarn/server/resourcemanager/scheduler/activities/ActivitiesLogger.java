@@ -25,6 +25,7 @@ import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.server.resourcemanager.rmcontainer.RMContainer;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.SchedulerApplicationAttempt;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.SchedulerNode;
 
@@ -48,6 +49,10 @@ public class ActivitiesLogger {
         ActivitiesManager activitiesManager, SchedulerNode node,
         SchedulerApplicationAttempt application, Priority priority,
         String diagnostic) {
+      // FIXME, global scheduling
+      if (node == null) {
+        return;
+      }
       recordAppActivityWithoutAllocation(activitiesManager, node, application,
           priority, diagnostic, ActivityState.SKIPPED);
     }
@@ -60,6 +65,11 @@ public class ActivitiesLogger {
         ActivitiesManager activitiesManager, SchedulerNode node,
         SchedulerApplicationAttempt application, Priority priority,
         String diagnostic) {
+      // FIXME, global scheduling
+      if (node == null) {
+        return;
+      }
+
       String type = "app";
       recordActivity(activitiesManager, node, application.getQueueName(),
           application.getApplicationId().toString(), priority,
@@ -78,6 +88,10 @@ public class ActivitiesLogger {
         SchedulerApplicationAttempt application, Priority priority,
         String diagnostic, ActivityState appState) {
       if (activitiesManager == null) {
+        return;
+      }
+      // FIXME, global scheduling
+      if (node == null) {
         return;
       }
       if (activitiesManager.shouldRecordThisNode(node.getNodeID())) {
@@ -112,9 +126,13 @@ public class ActivitiesLogger {
      */
     public static void recordAppActivityWithAllocation(
         ActivitiesManager activitiesManager, SchedulerNode node,
-        SchedulerApplicationAttempt application, Container updatedContainer,
+        SchedulerApplicationAttempt application, RMContainer updatedContainer,
         ActivityState activityState) {
       if (activitiesManager == null) {
+        return;
+      }
+      // FIXME: global-scheduling
+      if (node == null) {
         return;
       }
       if (activitiesManager.shouldRecordThisNode(node.getNodeID())) {
@@ -122,9 +140,9 @@ public class ActivitiesLogger {
         // Add application-container activity into specific node allocation.
         activitiesManager.addSchedulingActivityForNode(node.getNodeID(),
             application.getApplicationId().toString(),
-            updatedContainer.getId().toString(),
-            updatedContainer.getPriority().toString(), activityState,
-            ActivityDiagnosticConstant.EMPTY, type);
+            updatedContainer.getContainer().toString(),
+            updatedContainer.getContainer().getPriority().toString(),
+            activityState, ActivityDiagnosticConstant.EMPTY, type);
         type = "app";
         // Add queue-application activity into specific node allocation.
         activitiesManager.addSchedulingActivityForNode(node.getNodeID(),
@@ -138,9 +156,10 @@ public class ActivitiesLogger {
           application.getApplicationId())) {
         String type = "container";
         activitiesManager.addSchedulingActivityForApp(
-            application.getApplicationId(), updatedContainer.getId().toString(),
-            updatedContainer.getPriority().toString(), activityState,
-            ActivityDiagnosticConstant.EMPTY, type);
+            application.getApplicationId(),
+            updatedContainer.getContainerId().toString(),
+            updatedContainer.getContainer().getPriority().toString(),
+            activityState, ActivityDiagnosticConstant.EMPTY, type);
       }
     }
 
@@ -149,12 +168,17 @@ public class ActivitiesLogger {
      * update.
      */
     public static void startAppAllocationRecording(
-        ActivitiesManager activitiesManager, NodeId nodeId, long currentTime,
+        ActivitiesManager activitiesManager, SchedulerNode node, long currentTime,
         SchedulerApplicationAttempt application) {
+      // FIXME: Global scheduling caused issue
+      if (null == node) {
+        return;
+      }
+
       if (activitiesManager == null) {
         return;
       }
-      activitiesManager.startAppAllocationRecording(nodeId, currentTime,
+      activitiesManager.startAppAllocationRecording(node.getNodeID(), currentTime,
           application);
     }
 
@@ -230,6 +254,10 @@ public class ActivitiesLogger {
       if (activitiesManager == null) {
         return;
       }
+      // FIXME, global scheduling
+      if (node == null) {
+        return;
+      }
       if (activitiesManager.shouldRecordThisNode(node.getNodeID())) {
         activitiesManager.updateAllocationFinalState(node.getNodeID(),
             containerId, containerState);
@@ -264,6 +292,10 @@ public class ActivitiesLogger {
       SchedulerNode node, String parentName, String childName,
       Priority priority, ActivityState state, String diagnostic, String type) {
     if (activitiesManager == null) {
+      return;
+    }
+    // FIXME: global-scheduling
+    if (node == null) {
       return;
     }
     if (activitiesManager.shouldRecordThisNode(node.getNodeID())) {

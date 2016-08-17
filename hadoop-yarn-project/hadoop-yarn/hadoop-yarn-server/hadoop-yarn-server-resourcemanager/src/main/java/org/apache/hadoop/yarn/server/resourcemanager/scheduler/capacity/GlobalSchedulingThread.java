@@ -54,7 +54,9 @@ public class GlobalSchedulingThread extends Thread {
         refreshNodesWhenNecessary();
 
         // Do scheduling on cached nodes
-        schedule();
+        if (!schedulableNodes.isEmpty() || !reservedNodes.isEmpty()) {
+          schedule();
+        }
       } finally {
         readLock.unlock();
       }
@@ -110,28 +112,33 @@ public class GlobalSchedulingThread extends Thread {
 
   private void schedule() {
     if (scheduleOnReservedNodes) {
-      for (FiCaSchedulerNode node : schedulableNodes.values()) {
+      for (FiCaSchedulerNode node : reservedNodes.values()) {
         if (node.getReservedContainer() != null) {
           cs.allocateOnReservedNode(node);
         }
       }
       scheduleOnReservedNodes = false;
-    } else {
-      cs.getRootQueue().assignContainers(cs.getClusterResource(),
+    } else if (!schedulableNodes.isEmpty()) {
+      CSAssignment assignment = cs.getRootQueue().assignContainers(
+          cs.getClusterResource(),
           new PlacementSet<>(null, schedulableNodes,
               RMNodeLabelsManager.NO_LABEL), new ResourceLimits(
               cs.getNodeLabelsManager()
                   .getResourceByLabel(RMNodeLabelsManager.NO_LABEL,
                       cs.getClusterResource())),
           SchedulingMode.RESPECT_PARTITION_EXCLUSIVITY);
+      assignment.setSchedulingMode(SchedulingMode.RESPECT_PARTITION_EXCLUSIVITY);
+      cs.submitResourceCommitRequest(cs.getClusterResource(), assignment);
 
       for (String partition : cs.getRMContext().getNodeLabelManager()
           .getClusterNodeLabelNames()) {
-        cs.getRootQueue().assignContainers(cs.getClusterResource(),
+        assignment = cs.getRootQueue().assignContainers(cs.getClusterResource(),
             new PlacementSet<>(null, schedulableNodes, partition),
             new ResourceLimits(cs.getNodeLabelsManager()
                 .getResourceByLabel(partition, cs.getClusterResource())),
             SchedulingMode.RESPECT_PARTITION_EXCLUSIVITY);
+        assignment.setSchedulingMode(SchedulingMode.RESPECT_PARTITION_EXCLUSIVITY);
+        cs.submitResourceCommitRequest(cs.getClusterResource(), assignment);
       }
 
       // Set if do reserved allocation in next round

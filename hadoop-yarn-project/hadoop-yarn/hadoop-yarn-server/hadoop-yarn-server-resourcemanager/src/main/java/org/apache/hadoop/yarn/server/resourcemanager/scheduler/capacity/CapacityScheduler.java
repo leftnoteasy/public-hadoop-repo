@@ -101,9 +101,13 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.activities.Activi
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.activities.AllocationState;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.preemption.KillableContainer;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.preemption.PreemptionManager;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.committer.ContainerAllocationContext;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.committer.ResourceCommitRequest;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.committer.ResourceCommitterHandler;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.AssignmentInformation;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.PlacementSet;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.QueueEntitlement;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.SchedulerContainer;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.fica.FiCaSchedulerApp;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.fica.FiCaSchedulerNode;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.event.AppAddedSchedulerEvent;
@@ -176,6 +180,9 @@ public class CapacityScheduler extends
 
   static final PartitionedQueueComparator partitionedQueueComparator =
       new PartitionedQueueComparator();
+
+  private ResourceCommitterHandler<FiCaSchedulerApp, FiCaSchedulerNode>
+      resourceCommitRequestHandler;
 
   @Override
   public void setConf(Configuration conf) {
@@ -367,12 +374,15 @@ public class CapacityScheduler extends
     Configuration configuration = new Configuration(conf);
     super.serviceInit(conf);
     initScheduler(configuration);
+    resourceCommitRequestHandler = new ResourceCommitterHandler<>(this);
+    resourceCommitRequestHandler.init(conf);
   }
 
   @Override
   public void serviceStart() throws Exception {
     startSchedulerThreads();
     activitiesManager.start();
+    resourceCommitRequestHandler.start();
     super.serviceStart();
   }
 
@@ -384,6 +394,7 @@ public class CapacityScheduler extends
         asyncSchedulerThread.join(THREAD_JOIN_TIMEOUT_MS);
       }
     }
+    resourceCommitRequestHandler.stop();
     super.serviceStop();
   }
 
@@ -1247,7 +1258,7 @@ public class CapacityScheduler extends
       CSAssignment assignment;
 
       FiCaSchedulerApp reservedApplication =
-          getCurrentAttemptForContainer(reservedContainer.getContainerId());
+          getApplicationAttempt(reservedContainer.getApplicationAttemptId());
 
       // Try to fulfill the reservation
       LOG.info("Trying to fulfill reservation for application "
@@ -1264,6 +1275,10 @@ public class CapacityScheduler extends
               new ResourceLimits(labelManager.getResourceByLabel(
                   RMNodeLabelsManager.NO_LABEL, getClusterResource())),
               SchedulingMode.RESPECT_PARTITION_EXCLUSIVITY);
+
+      submitResourceCommitRequest(getClusterResource(), assignment);
+
+      // container to assignment properly
       if (assignment.isFulfilledReservation()) {
         CSAssignment tmp =
             new CSAssignment(reservedContainer.getReservedResource(),
@@ -1271,7 +1286,7 @@ public class CapacityScheduler extends
         Resources.addTo(assignment.getAssignmentInformation().getAllocated(),
             reservedContainer.getReservedResource());
         tmp.getAssignmentInformation().addAllocationDetails(
-            reservedContainer.getContainerId(), queue.getQueuePath());
+            reservedContainer, queue.getQueuePath());
         tmp.getAssignmentInformation().incrAllocations();
         updateSchedulerHealth(lastNodeUpdateTime, node, tmp);
         schedulerHealth.updateSchedulerFulfilledReservationCounts(1);
@@ -1340,6 +1355,11 @@ public class CapacityScheduler extends
             new ResourceLimits(labelManager.getResourceByLabel(
                 node.getPartition(), getClusterResource())),
             SchedulingMode.RESPECT_PARTITION_EXCLUSIVITY);
+        assignment.setSchedulingMode(
+            SchedulingMode.RESPECT_PARTITION_EXCLUSIVITY);
+
+        submitResourceCommitRequest(getClusterResource(), assignment);
+
         if (Resources.greaterThan(calculator, getClusterResource(),
             assignment.getResource(), Resources.none())) {
           updateSchedulerHealth(lastNodeUpdateTime, node, assignment);
@@ -1374,14 +1394,20 @@ public class CapacityScheduler extends
             new ResourceLimits(labelManager.getResourceByLabel(
                 RMNodeLabelsManager.NO_LABEL, getClusterResource())),
             SchedulingMode.IGNORE_PARTITION_EXCLUSIVITY);
+
+        // TODO, submit resource commit request
+        assignment.setSchedulingMode(
+            SchedulingMode.IGNORE_PARTITION_EXCLUSIVITY);
+
+        submitResourceCommitRequest(getClusterResource(), assignment);
+
         updateSchedulerHealth(lastNodeUpdateTime, node, assignment);
       }
     } else {
       LOG.info("Skipping scheduling since node "
           + node.getNodeID()
           + " is reserved by application "
-          + node.getReservedContainer().getContainerId()
-              .getApplicationAttemptId());
+          + node.getReservedContainer().getApplicationAttemptId());
     }
   }
 
@@ -2201,5 +2227,149 @@ public class CapacityScheduler extends
 
   RMNodeLabelsManager getNodeLabelsManager() {
     return labelManager;
+  }
+
+  private SchedulerContainer<FiCaSchedulerApp, FiCaSchedulerNode> getSchedulerContainer(
+      RMContainer rmContainer) {
+    return getSchedulerContainer(rmContainer, false);
+  }
+
+  private SchedulerContainer<FiCaSchedulerApp, FiCaSchedulerNode> getSchedulerContainer(
+      RMContainer rmContainer, boolean allocated) {
+    if (null == rmContainer) { return null; }
+
+    FiCaSchedulerApp app = getApplicationAttempt(
+        rmContainer.getApplicationAttemptId());
+    if (null == app) { return null; }
+
+    NodeId nodeId;
+    if (rmContainer.getState() != RMContainerState.NEW) {
+      allocated = rmContainer.getState() != RMContainerState.RESERVED;
+      nodeId = allocated ?
+          rmContainer.getAllocatedNode() :
+          rmContainer.getReservedNode();
+    } else {
+      nodeId = rmContainer.getNodeId();
+    }
+
+    FiCaSchedulerNode node = getNode(nodeId);
+    if (null == node) { return null; }
+    return new SchedulerContainer<>(app, node, rmContainer,
+        // TODO, node partition should come from CSAssignment
+        node.getPartition(), allocated);
+  }
+
+  private List<SchedulerContainer<FiCaSchedulerApp, FiCaSchedulerNode>>
+      getSchedulerContainersToRelease(CSAssignment csAssignment) {
+    List<SchedulerContainer<FiCaSchedulerApp, FiCaSchedulerNode>> list = null;
+
+    if (csAssignment.getContainersToKill() != null && !csAssignment
+        .getContainersToKill().isEmpty()) {
+      list = new ArrayList<>();
+      for (RMContainer rmContainer : csAssignment.getContainersToKill()) {
+        list.add(getSchedulerContainer(rmContainer));
+      }
+    }
+
+    if (csAssignment.getExcessReservation() != null) {
+      if (null == list) {
+        list = new ArrayList<>();
+      }
+      list.add(getSchedulerContainer(csAssignment.getExcessReservation()));
+    }
+
+    return list == null ? Collections.emptyList() : list;
+  }
+
+  public void submitResourceCommitRequest(
+      Resource clusterResource, CSAssignment csAssignment) {
+    ContainerAllocationContext<FiCaSchedulerApp, FiCaSchedulerNode> allocated =
+        null;
+    ContainerAllocationContext<FiCaSchedulerApp, FiCaSchedulerNode> reserved =
+        null;
+    List<SchedulerContainer<FiCaSchedulerApp, FiCaSchedulerNode>> released =
+        null;
+
+    if (Resources.greaterThan(calculator, clusterResource,
+        csAssignment.getResource(), Resources.none())) {
+      // Allocated something
+      List<AssignmentInformation.AssignmentDetails> allocations =
+          csAssignment.getAssignmentInformation().getAllocationDetails();
+      if (!allocations.isEmpty()) {
+        RMContainer rmContainer = allocations.get(0).rmContainer;
+        allocated = new ContainerAllocationContext<>(
+            getSchedulerContainer(rmContainer, true),
+            getSchedulerContainersToRelease(csAssignment),
+            getSchedulerContainer(csAssignment.getFulfilledReservedContainer()),
+            csAssignment.isIncreasedAllocation(), csAssignment.getType(),
+            csAssignment.getSchedulingMode(), csAssignment.getResource());
+      }
+
+      // Reserved something
+      List<AssignmentInformation.AssignmentDetails> reservation =
+          csAssignment.getAssignmentInformation().getReservationDetails();
+      if (!reservation.isEmpty()) {
+        RMContainer rmContainer = reservation.get(0).rmContainer;
+        reserved = new ContainerAllocationContext<>(
+            getSchedulerContainer(rmContainer, false),
+            getSchedulerContainersToRelease(csAssignment),
+            getSchedulerContainer(csAssignment.getFulfilledReservedContainer()),
+            csAssignment.isIncreasedAllocation(), csAssignment.getType(),
+            csAssignment.getSchedulingMode(), csAssignment.getResource());
+      }
+    }
+
+    if (null == allocated && null == reserved) {
+      released = getSchedulerContainersToRelease(csAssignment);
+    }
+
+    if (null != allocated || null != reserved || null != released) {
+      List<ContainerAllocationContext<FiCaSchedulerApp, FiCaSchedulerNode>> allocationsList = null;
+      if (allocated != null) {
+        allocationsList = new ArrayList<>();
+        allocationsList.add(allocated);
+      }
+
+      List<ContainerAllocationContext<FiCaSchedulerApp, FiCaSchedulerNode>> reservationsList = null;
+      if (reserved != null) {
+        reservationsList = new ArrayList<>();
+        reservationsList.add(reserved);
+      }
+
+      resourceCommitRequestHandler.handle(
+          new ResourceCommitRequest<>(
+              allocationsList, reservationsList, released));
+    }
+  }
+
+  public synchronized void processResourceCommitRequest(
+      ResourceCommitRequest r) {
+    ResourceCommitRequest<FiCaSchedulerApp, FiCaSchedulerNode> request =
+        (ResourceCommitRequest<FiCaSchedulerApp, FiCaSchedulerNode>) r;
+
+    ApplicationAttemptId attemptId = null;
+
+    // find the application to accept and apply the ResourceCommitRequest
+    if (request.anythingAllocatedOrReserved()) {
+      ContainerAllocationContext<FiCaSchedulerApp, FiCaSchedulerNode> c =
+          request.getFirstAllocatedOrReservedContainer();
+      attemptId =
+          c.getAllocatedOrReservedContainer().getSchedulerApplicationAttempt()
+              .getApplicationAttemptId();
+    } else {
+      if (!request.getContainersToRelease().isEmpty()) {
+        attemptId = request.getContainersToRelease().get(0)
+            .getSchedulerApplicationAttempt().getApplicationAttemptId();
+      }
+    }
+
+    if (attemptId != null) {
+      FiCaSchedulerApp app = getApplicationAttempt(attemptId);
+      if (app != null) {
+        if (app.acceptResourceCommitRequest(getClusterResource(), request)) {
+          app.applyResourceCommitRequest(getClusterResource(), request);
+        }
+      }
+    }
   }
 }

@@ -25,6 +25,7 @@ import org.apache.hadoop.yarn.api.records.Container;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.ContainerReport;
 import org.apache.hadoop.yarn.api.records.ContainerState;
+import org.apache.hadoop.yarn.api.records.ContainerStatus;
 import org.apache.hadoop.yarn.api.records.ExecutionType;
 import org.apache.hadoop.yarn.api.records.NodeId;
 import org.apache.hadoop.yarn.api.records.Priority;
@@ -53,6 +54,12 @@ public interface RMContainer extends EventHandler<RMContainerEvent> {
   Container getContainer();
 
   Resource getReservedResource();
+
+  /*
+   * Return reserved resource for reserved containers, return allocated resource
+   * for other container
+   */
+  Resource getAllocatedOrReservedResource();
 
   NodeId getReservedNode();
   
@@ -105,4 +112,8 @@ public interface RMContainer extends EventHandler<RMContainerEvent> {
    * @return If the container was allocated remotely.
    */
   boolean isRemotelyAllocated();
+
+  ContainerStatus getFinishedStatus();
+
+  NodeId getNodeId();
 }

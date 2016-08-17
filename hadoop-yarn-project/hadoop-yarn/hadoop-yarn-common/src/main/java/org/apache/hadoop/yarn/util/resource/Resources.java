@@ -162,6 +162,18 @@ public class Resources {
     return addTo(clone(lhs), rhs);
   }
 
+  public static Resource addAll(Resource[] res) {
+    if (res == null || res.length == 0) {
+      Resource total = Resources.createResource(0);
+      for (Resource r : res) {
+        Resources.addTo(total, r);
+      }
+      return total;
+    }
+
+    return Resources.none();
+  }
+
   public static Resource subtractFrom(Resource lhs, Resource rhs) {
     lhs.setMemorySize(lhs.getMemorySize() - rhs.getMemorySize());
     lhs.setVirtualCores(lhs.getVirtualCores() - rhs.getVirtualCores());

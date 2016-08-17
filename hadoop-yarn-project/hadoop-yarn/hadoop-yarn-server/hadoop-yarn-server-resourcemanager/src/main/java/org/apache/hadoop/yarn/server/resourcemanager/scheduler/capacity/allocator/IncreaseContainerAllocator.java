@@ -77,7 +77,7 @@ public class IncreaseContainerAllocator extends AbstractContainerAllocator {
         request.getDeltaCapacity());
     assignment.getAssignmentInformation().incrReservations();
     assignment.getAssignmentInformation().addReservationDetails(
-        request.getContainerId(), application.getCSLeafQueue().getQueuePath());
+        request.getRMContainer(), application.getCSLeafQueue().getQueuePath());
     assignment.setIncreasedAllocation(true);
     
     LOG.info("Reserved increase container request:" + request.toString());
@@ -94,7 +94,7 @@ public class IncreaseContainerAllocator extends AbstractContainerAllocator {
         request.getDeltaCapacity());
     assignment.getAssignmentInformation().incrAllocations();
     assignment.getAssignmentInformation().addAllocationDetails(
-        request.getContainerId(), application.getCSLeafQueue().getQueuePath());
+        request.getRMContainer(), application.getCSLeafQueue().getQueuePath());
     assignment.setIncreasedAllocation(true);
     
     // notify application

@@ -22,8 +22,10 @@ import org.apache.hadoop.classification.InterfaceStability.Unstable;
 import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.server.resourcemanager.rmcontainer.RMContainer;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeType;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.SchedulerRequestKey;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.AssignmentInformation;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.fica.FiCaSchedulerApp;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.fica.FiCaSchedulerNode;
 import org.apache.hadoop.yarn.util.resource.Resources;
 
 import java.util.List;
@@ -53,6 +55,12 @@ public class CSAssignment {
   }
 
   private boolean fulfilledReservation;
+
+  // TODO, set it. Set when fulfilledReservation = true
+  private RMContainer fulfilledReservedContainer;
+
+  private SchedulingMode schedulingMode;
+
   private final AssignmentInformation assignmentInformation;
   private boolean increaseAllocation;
   private List<RMContainer> containersToKill;
@@ -172,5 +180,22 @@ public class CSAssignment {
 
   public List<RMContainer> getContainersToKill() {
     return containersToKill;
+  }
+
+  public RMContainer getFulfilledReservedContainer() {
+    return fulfilledReservedContainer;
+  }
+
+  public void setFulfilledReservedContainer(
+      RMContainer fulfilledReservedContainer) {
+    this.fulfilledReservedContainer = fulfilledReservedContainer;
+  }
+
+  public SchedulingMode getSchedulingMode() {
+    return schedulingMode;
+  }
+
+  public void setSchedulingMode(SchedulingMode schedulingMode) {
+    this.schedulingMode = schedulingMode;
   }
 }

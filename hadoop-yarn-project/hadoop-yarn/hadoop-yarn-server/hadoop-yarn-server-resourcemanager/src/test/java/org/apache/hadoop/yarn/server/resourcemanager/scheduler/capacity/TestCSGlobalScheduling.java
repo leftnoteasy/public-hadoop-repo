@@ -29,6 +29,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.resource.Priority;
 import org.apache.hadoop.yarn.server.resourcemanager.rmapp.RMApp;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceScheduler;
 import org.apache.hadoop.yarn.util.resource.Resources;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -65,6 +66,9 @@ public class TestCSGlobalScheduling {
 
     rm1.getRMContext().setNodeLabelManager(mgr);
     rm1.start();
+    CapacityScheduler cs =
+        (CapacityScheduler) rm1.getRMContext().getScheduler();
+
     MockNM nm1 = rm1.registerNode("h1:1234", 8000); // label = x
     MockNM nm2 = rm1.registerNode("h2:1234", 8000); // label = y
     MockNM nm3 = rm1.registerNode("h3:1234", 8000); // label = <empty>
@@ -90,7 +94,9 @@ public class TestCSGlobalScheduling {
     // request a container.
     // am1.allocate("*", 1024, 1, new ArrayList<ContainerId>());
 
-    Thread.sleep(1000000);
+    Thread.sleep(10000);
+    Assert.assertEquals(8192,
+        cs.getClusterResourceUsage().getUsed().getMemorySize());
 
 
     rm1.close();

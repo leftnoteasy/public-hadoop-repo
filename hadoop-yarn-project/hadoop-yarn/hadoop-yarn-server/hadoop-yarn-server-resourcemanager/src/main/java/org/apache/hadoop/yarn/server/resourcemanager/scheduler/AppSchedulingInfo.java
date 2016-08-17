@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.antlr.runtime.tree.Tree;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
@@ -598,6 +599,67 @@ public class AppSchedulingInfo {
     appResourceUsage.decUsed(decreaseRequest.getNodePartition(), absDelta);
   }
 
+  public synchronized void updateMetricsForAllocatedContainer(
+      ResourceRequest request, NodeType type, Container containerAllocated) {
+    QueueMetrics metrics = queue.getMetrics();
+    if (pending) {
+      // once an allocation is done we assume the application is
+      // running from scheduler's POV.
+      pending = false;
+      metrics.runAppAttempt(applicationId, user);
+    }
+
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("allocate: applicationId=" + applicationId + " container="
+          + containerAllocated.getId() + " host=" + containerAllocated
+          .getNodeId().toString() + " user=" + user + " resource=" + request
+          .getCapability() + " type=" + type);
+    }
+    metrics.allocateResources(user, 1, request.getCapability(), true);
+    metrics.incrNodeTypeAggregations(user, type);
+  }
+
+  /*
+   * In async environment, pending resource request could be updated during
+   * scheduling, this method checks pending request before allocating
+   */
+  public synchronized boolean checkAllocation(NodeType type,
+      SchedulerNode node, SchedulerRequestKey schedulerKey) {
+    ResourceRequest r = resourceRequestMap.get(schedulerKey).get(
+        ResourceRequest.ANY);
+    if (r == null || r.getNumContainers() <= 0) {
+      return false;
+    }
+    if (type == NodeType.RACK_LOCAL || type == NodeType.NODE_LOCAL) {
+      r = resourceRequestMap.get(schedulerKey).get(node.getRackName());
+      if (r == null || r.getNumContainers() <= 0) {
+        return false;
+      }
+      if (type == NodeType.NODE_LOCAL) {
+        r = resourceRequestMap.get(schedulerKey).get(node.getNodeName());
+        if (r == null || r.getNumContainers() <= 0) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  public synchronized List<ResourceRequest> allocate(NodeType type,
+      SchedulerNode node, SchedulerRequestKey schedulerKey,
+      Container containerAllocated) {
+    ResourceRequest request;
+    if (type == NodeType.NODE_LOCAL) {
+      request = resourceRequestMap.get(schedulerKey).get(node.getNodeName());
+    } else if (type == NodeType.RACK_LOCAL) {
+      request = resourceRequestMap.get(schedulerKey).get(node.getRackName());
+    } else {
+      request = resourceRequestMap.get(schedulerKey).get(ResourceRequest.ANY);
+    }
+    return allocate(type, node, schedulerKey, request, containerAllocated);
+  }
+
   /**
    * Resources have been allocated to this application by the resource
    * scheduler. Track them.
@@ -619,24 +681,10 @@ public class AppSchedulingInfo {
     } else {
       allocateOffSwitch(request, resourceRequests);
     }
-    QueueMetrics metrics = queue.getMetrics();
-    if (pending) {
-      // once an allocation is done we assume the application is
-      // running from scheduler's POV.
-      pending = false;
-      metrics.runAppAttempt(applicationId, user);
-    }
 
-    if (LOG.isDebugEnabled()) {
-      LOG.debug("allocate: applicationId=" + applicationId
-          + " container=" + containerAllocated.getId()
-          + " host=" + containerAllocated.getNodeId().toString()
-          + " user=" + user
-          + " resource=" + request.getCapability()
-          + " type=" + type);
+    if (null != containerAllocated) {
+      updateMetricsForAllocatedContainer(request, type, containerAllocated);
     }
-    metrics.allocateResources(user, 1, request.getCapability(), true);
-    metrics.incrNodeTypeAggregations(user, type);
     return resourceRequests;
   }
 

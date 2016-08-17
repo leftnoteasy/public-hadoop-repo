@@ -56,7 +56,11 @@ import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceLimits;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceUsage;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.SchedulerApplicationAttempt;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.SchedulerUtils;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.committer.ContainerAllocationContext;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.committer.ResourceCommitRequest;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.PlacementSet;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.SchedulerContainer;
+import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.fica.FiCaSchedulerApp;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.common.fica.FiCaSchedulerNode;
 import org.apache.hadoop.yarn.util.resource.ResourceCalculator;
 import org.apache.hadoop.yarn.util.resource.Resources;
@@ -764,5 +768,51 @@ public abstract class AbstractCSQueue implements CSQueue {
     } finally {
       writeLock.unlock();
     }
+  }
+
+  public boolean acceptCSAssignment(Resource cluster,
+      ResourceCommitRequest<FiCaSchedulerApp, FiCaSchedulerNode> request) {
+    // If we allocated something
+    if (request.anythingAllocatedOrReserved()) {
+      ContainerAllocationContext<FiCaSchedulerApp, FiCaSchedulerNode>
+          allocation = request.getFirstAllocatedOrReservedContainer();
+      SchedulerContainer<FiCaSchedulerApp, FiCaSchedulerNode>
+          schedulerContainer = allocation.getAllocatedOrReservedContainer();
+
+      // Do not check when allocating new container from a reserved container
+      if (allocation.getAllocateFromReservedContainer() == null) {
+        Resource required = allocation.getAllocatedOrReservedResource();
+        Resource netAllocated = Resources.subtract(required,
+            request.getTotalReleasedResource());
+
+        try {
+          readLock.lock();
+
+          String partition = schedulerContainer.getNodePartition();
+          Resource maxResourceLimit;
+          if (allocation.getSchedulingMode()
+              == SchedulingMode.RESPECT_PARTITION_EXCLUSIVITY) {
+            maxResourceLimit = getQueueMaxResource(partition, cluster);
+          } else {
+            maxResourceLimit = labelManager.getResourceByLabel(
+                schedulerContainer.getNodePartition(), cluster);
+          }
+          if (!Resources.fitsIn(resourceCalculator, cluster,
+              Resources.add(queueUsage.getUsed(partition), netAllocated),
+              maxResourceLimit)) {
+            return false;
+          }
+        }
+        finally {
+          readLock.unlock();
+        }
+      }
+    }
+
+    if (parent != null) {
+      return ((AbstractCSQueue) parent).acceptCSAssignment(cluster, request);
+    }
+
+    return true;
   }
 }

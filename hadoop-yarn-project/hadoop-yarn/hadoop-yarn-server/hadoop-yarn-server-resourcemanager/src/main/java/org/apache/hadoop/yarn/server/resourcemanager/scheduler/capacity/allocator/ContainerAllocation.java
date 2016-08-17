@@ -60,7 +60,7 @@ public class ContainerAllocation {
   AllocationState state;
   NodeType containerNodeType = NodeType.NODE_LOCAL;
   NodeType requestNodeType = NodeType.NODE_LOCAL;
-  Container updatedContainer;
+  RMContainer updatedContainer;
   private List<RMContainer> toKillContainers;
   FiCaSchedulerNode nodeToAllocate;
 
@@ -90,7 +90,7 @@ public class ContainerAllocation {
     return containerNodeType;
   }
 
-  public Container getUpdatedContainer() {
+  public RMContainer getUpdatedContainer() {
     return updatedContainer;
   }
 

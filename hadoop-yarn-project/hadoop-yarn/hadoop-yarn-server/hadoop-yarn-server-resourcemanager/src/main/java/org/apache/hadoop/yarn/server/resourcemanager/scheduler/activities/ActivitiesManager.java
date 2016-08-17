@@ -277,6 +277,10 @@ public class ActivitiesManager extends AbstractService {
   }
 
   boolean shouldRecordThisNode(NodeId nodeID) {
+    // FIXME, global scheduling caused issue
+    if (nodeID == null) {
+      return false;
+    }
     return activeRecordedNodes.contains(nodeID) && recordingNodesAllocation
         .containsKey(nodeID);
   }

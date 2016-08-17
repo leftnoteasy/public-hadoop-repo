@@ -33,6 +33,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.nodelabels.RMNodeLabelsManager;
 import org.apache.hadoop.yarn.server.resourcemanager.rmcontainer.RMContainer;
 
+import org.apache.hadoop.yarn.server.resourcemanager.rmcontainer.RMContainerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.NodeType;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.ResourceLimits;
 import org.apache.hadoop.yarn.server.resourcemanager.scheduler.SchedulerAppUtils;
@@ -98,17 +99,9 @@ public class RegularContainerAllocator extends AbstractContainerAllocator {
   private ContainerAllocation preCheckForNewContainer(Resource clusterResource,
       String partition, SchedulingMode schedulingMode,
       ResourceLimits resourceLimits, SchedulerRequestKey schedulerKey,
-      SchedulerNode node) {
+      PlacementSet placementSet) {
+    SchedulerNode node = placementSet.getNextAvailable();
     Priority priority = schedulerKey.getPriority();
-
-    if (SchedulerAppUtils.isPlaceBlacklisted(application, node, LOG)) {
-      application.updateAppSkipNodeDiagnostics(
-          CSAMContainerLaunchDiagnosticsConstants.SKIP_AM_ALLOCATION_IN_BLACK_LISTED_NODE);
-      ActivitiesLogger.APP.recordSkippedAppActivityWithoutAllocation(
-          activitiesManager, node, application, priority,
-          ActivityDiagnosticConstant.SKIP_BLACK_LISTED_NODE);
-      return ContainerAllocation.APP_SKIPPED;
-    }
 
     ResourceRequest anyRequest =
         application.getResourceRequest(schedulerKey, ResourceRequest.ANY);
@@ -152,7 +145,7 @@ public class RegularContainerAllocator extends AbstractContainerAllocator {
     // matches the node's label?
     // If not match, jump to next priority.
     if (!SchedulerUtils.checkResourceRequestMatchingNodePartition(
-        anyRequest.getNodeLabelExpression(), node.getPartition(),
+        anyRequest.getNodeLabelExpression(), placementSet.getPartition(),
         schedulingMode)) {
       ActivitiesLogger.APP.recordSkippedAppActivityWithoutAllocation(
           activitiesManager, node, application, priority,
@@ -387,6 +380,9 @@ public class RegularContainerAllocator extends AbstractContainerAllocator {
     if (SchedulerAppUtils.isPlaceBlacklisted(application, node, LOG)) {
       application.updateAppSkipNodeDiagnostics(
           CSAMContainerLaunchDiagnosticsConstants.SKIP_AM_ALLOCATION_IN_BLACK_LISTED_NODE);
+      ActivitiesLogger.APP.recordSkippedAppActivityWithoutAllocation(
+          activitiesManager, node, application, priority,
+          ActivityDiagnosticConstant.SKIP_BLACK_LISTED_NODE);
       return ContainerAllocation.APP_SKIPPED;
     }
 
@@ -677,25 +673,30 @@ public class RegularContainerAllocator extends AbstractContainerAllocator {
       SchedulerRequestKey schedulerKey) {
 
     NodeId nodeId = node.getRMNode().getNodeID();
-    ContainerId containerId = BuilderUtils.newContainerId(
-        application.getApplicationAttemptId(), application.getNewContainerId());
 
     // Create the container
-    return BuilderUtils.newContainer(containerId, nodeId,
+    return BuilderUtils.newContainer(null, nodeId,
         node.getRMNode().getHttpAddress(), capability,
         schedulerKey.getPriority(), null,
         schedulerKey.getAllocationRequestId());
   }
 
+  /*
+   * Add a new acceptResourceCommitRequest method to write used resource, reserve container, etc.
+   *
+   * And when acceptResourceCommitRequest fails, ResourceRequests will be recovered
+   */
   private ContainerAllocation handleNewContainerAllocation(
       ContainerAllocation allocationResult, FiCaSchedulerNode node,
       SchedulerRequestKey schedulerKey, RMContainer reservedContainer,
       Container container) {
+    /*
     // Handling container allocation
     // Did we previously reserve containers at this 'priority'?
     if (reservedContainer != null) {
       application.unreserve(schedulerKey, node, reservedContainer);
     }
+    */
 
     // Inform the application
     RMContainer allocatedContainer =
@@ -714,12 +715,16 @@ public class RegularContainerAllocator extends AbstractContainerAllocator {
       return ret;
     }
 
+    allocationResult.updatedContainer = allocatedContainer;
+
+    /*
     // Inform the node
     node.allocateContainer(allocatedContainer);
 
     // update locality statistics
     application.incNumAllocatedContainers(allocationResult.containerNodeType,
         allocationResult.requestNodeType);
+    */
 
     return allocationResult;
   }
@@ -750,10 +755,14 @@ public class RegularContainerAllocator extends AbstractContainerAllocator {
           handleNewContainerAllocation(allocationResult, node, schedulerKey,
               reservedContainer, container);
     } else {
-      // When reserving container
-      application.reserve(schedulerKey, node, reservedContainer, container);
+      RMContainer updatedContainer = reservedContainer;
+      if (updatedContainer == null) {
+        updatedContainer = new RMContainerImpl(container,
+            application.getApplicationAttemptId(), node.getNodeID(),
+            application.getAppSchedulingInfo().getUser(), rmContext);
+      }
+      allocationResult.updatedContainer = updatedContainer;
     }
-    allocationResult.updatedContainer = container;
 
     // Only reset opportunities when we FIRST allocate the container. (IAW, When
     // reservedContainer != null, it's not the first time)
@@ -799,7 +808,7 @@ public class RegularContainerAllocator extends AbstractContainerAllocator {
       // pre-check when allocating new container
       ContainerAllocation result = preCheckForNewContainer(clusterResource,
           placementSet.getPartition(), schedulingMode, resourceLimits,
-          schedulerKey, placementSet.getNextAvailable());
+          schedulerKey, placementSet);
       if (null != result) {
         return result;
       }
@@ -821,14 +830,6 @@ public class RegularContainerAllocator extends AbstractContainerAllocator {
     ContainerAllocation result = ContainerAllocation.PRIORITY_SKIPPED;
     while (iter.hasNext()) {
       FiCaSchedulerNode node = iter.next();
-
-      // Avoid node with <= 0 resources OR has reserved containers when not
-      // allocate from reserved container
-      if ((node.getReservedContainer() != null && reservedContainer == null)
-          || Resources.lessThanOrEqual(rc, clusterResource,
-          node.getUnallocatedResource(), Resources.none())) {
-        continue;
-      }
 
       // FIXME: part of the preAllocation can be extracted to avoid duplicated
       // check for resource-requests across nodes.

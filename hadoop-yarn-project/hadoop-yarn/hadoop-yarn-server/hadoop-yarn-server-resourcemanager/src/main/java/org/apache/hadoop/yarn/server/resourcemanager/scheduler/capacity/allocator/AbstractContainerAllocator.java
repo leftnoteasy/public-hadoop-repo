@@ -83,7 +83,7 @@ public abstract class AbstractContainerAllocator {
     if (Resources.greaterThan(rc, clusterResource,
         result.getResourceToBeAllocated(), Resources.none())) {
       Resource allocatedResource = result.getResourceToBeAllocated();
-      Container updatedContainer = result.getUpdatedContainer();
+      RMContainer updatedContainer = result.getUpdatedContainer();
 
       assignment.setResource(allocatedResource);
       assignment.setType(result.getContainerNodeType());
@@ -94,7 +94,7 @@ public abstract class AbstractContainerAllocator {
             + application.getApplicationId() + " resource=" + allocatedResource
             + " queue=" + this.toString() + " cluster=" + clusterResource);
         assignment.getAssignmentInformation().addReservationDetails(
-            updatedContainer.getId(),
+            updatedContainer,
             application.getCSLeafQueue().getQueuePath());
         assignment.getAssignmentInformation().incrReservations();
         Resources.addTo(assignment.getAssignmentInformation().getReserved(),
@@ -102,7 +102,7 @@ public abstract class AbstractContainerAllocator {
 
         if (rmContainer != null) {
           ActivitiesLogger.APP.recordAppActivityWithAllocation(
-              activitiesManager, node, application, updatedContainer,
+              activitiesManager, node, application, rmContainer,
               ActivityState.RE_RESERVED);
           ActivitiesLogger.APP.finishSkippedAppAllocationRecording(
               activitiesManager, application.getApplicationId(),
@@ -113,25 +113,30 @@ public abstract class AbstractContainerAllocator {
               ActivityState.RESERVED);
           ActivitiesLogger.APP.finishAllocatedAppAllocationRecording(
               activitiesManager, application.getApplicationId(),
-              updatedContainer.getId(), ActivityState.RESERVED,
+              updatedContainer.getContainerId(), ActivityState.RESERVED,
               ActivityDiagnosticConstant.EMPTY);
         }
       } else if (result.getAllocationState() == AllocationState.ALLOCATED){
         // This is a new container
         // Inform the ordering policy
-        LOG.info("assignedContainer" + " application attempt="
-            + application.getApplicationAttemptId() + " container="
-            + updatedContainer.getId() + " queue=" + this + " clusterResource="
+        LOG.info("assignedContainer" + " application attempt=" + application
+            .getApplicationAttemptId() + " container=" + updatedContainer
+            .getContainerId() + " queue=" + this + " clusterResource="
             + clusterResource + " type=" + assignment.getType());
 
+        /*
+         * TODO, fix this
+         */
+        /*
         application
             .getCSLeafQueue()
             .getOrderingPolicy()
             .containerAllocated(application,
-                application.getRMContainer(updatedContainer.getId()));
+                application.getRMContainer(updatedContainer.getContainerId()));
+                */
 
         assignment.getAssignmentInformation().addAllocationDetails(
-            updatedContainer.getId(),
+            updatedContainer,
             application.getCSLeafQueue().getQueuePath());
         assignment.getAssignmentInformation().incrAllocations();
         Resources.addTo(assignment.getAssignmentInformation().getAllocated(),
@@ -139,13 +144,14 @@ public abstract class AbstractContainerAllocator {
 
         if (rmContainer != null) {
           assignment.setFulfilledReservation(true);
+          assignment.setFulfilledReservedContainer(rmContainer);
         }
 
         ActivitiesLogger.APP.recordAppActivityWithAllocation(activitiesManager,
             node, application, updatedContainer, ActivityState.ALLOCATED);
         ActivitiesLogger.APP.finishAllocatedAppAllocationRecording(
             activitiesManager, application.getApplicationId(),
-            updatedContainer.getId(), ActivityState.ACCEPTED,
+            updatedContainer.getContainerId(), ActivityState.ACCEPTED,
             ActivityDiagnosticConstant.EMPTY);
 
       }

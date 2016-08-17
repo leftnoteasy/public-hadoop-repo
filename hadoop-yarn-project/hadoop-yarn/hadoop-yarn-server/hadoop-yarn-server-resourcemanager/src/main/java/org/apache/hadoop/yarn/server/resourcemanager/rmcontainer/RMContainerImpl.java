@@ -161,7 +161,6 @@ public class RMContainerImpl implements RMContainer, Comparable<RMContainer> {
                                                  RMContainerEvent> stateMachine;
   private final ReadLock readLock;
   private final WriteLock writeLock;
-  private final ContainerId containerId;
   private final ApplicationAttemptId appAttemptId;
   private final NodeId nodeId;
   private final Container container;
@@ -224,7 +223,6 @@ public class RMContainerImpl implements RMContainer, Comparable<RMContainer> {
       RMContext rmContext, long creationTime, String nodeLabelExpression,
       boolean isExternallyAllocated) {
     this.stateMachine = stateMachineFactory.make(this);
-    this.containerId = container.getId();
     this.nodeId = nodeId;
     this.container = container;
     this.allocatedSchedulerKey = SchedulerRequestKey.extractFrom(container);
@@ -263,7 +261,7 @@ public class RMContainerImpl implements RMContainer, Comparable<RMContainer> {
 
   @Override
   public ContainerId getContainerId() {
-    return this.containerId;
+    return this.container.getId();
   }
 
   @Override
@@ -374,7 +372,7 @@ public class RMContainerImpl implements RMContainer, Comparable<RMContainer> {
       logURL.append(WebAppUtils.getHttpSchemePrefix(rmContext
           .getYarnConfiguration()));
       logURL.append(WebAppUtils.getRunningLogURL(
-          container.getNodeHttpAddress(), containerId.toString(),
+          container.getNodeHttpAddress(), getContainerId().toString(),
           user));
       return logURL.toString();
     } finally {
@@ -431,7 +429,12 @@ public class RMContainerImpl implements RMContainer, Comparable<RMContainer> {
 
   @Override
   public String toString() {
-    return containerId.toString();
+    Container c = getContainer();
+    if (null != c && null != c.getId()) {
+      return c.getId().toString();
+    } else {
+      return "container-id-not-set";
+    }
   }
   
   @Override
@@ -476,7 +479,7 @@ public class RMContainerImpl implements RMContainer, Comparable<RMContainer> {
       } catch (InvalidStateTransitionException e) {
         LOG.error("Can't handle this event at current state", e);
         LOG.error("Invalid event " + event.getType() + 
-            " on container " + this.containerId);
+            " on container " + this.getContainerId());
       }
       if (oldState != getState()) {
         LOG.info(event.getContainerId() + " Container Transitioned from "
@@ -488,7 +491,8 @@ public class RMContainerImpl implements RMContainer, Comparable<RMContainer> {
       writeLock.unlock();
     }
   }
-  
+
+  @Override
   public ContainerStatus getFinishedStatus() {
     return finishedStatus;
   }
@@ -517,7 +521,7 @@ public class RMContainerImpl implements RMContainer, Comparable<RMContainer> {
               report.getContainerExitStatus());
 
         new FinishedTransition().transition(container,
-          new RMContainerFinishedEvent(container.containerId, status,
+          new RMContainerFinishedEvent(container.getContainerId(), status,
             RMContainerEventType.FINISHED));
         return RMContainerState.COMPLETED;
       } else if (report.getContainerState().equals(ContainerState.RUNNING)) {
@@ -654,11 +658,11 @@ public class RMContainerImpl implements RMContainer, Comparable<RMContainer> {
       } else {
         // Something wrong happened, kill the container
         LOG.warn("Something wrong happened, container size reported by NM"
-            + " is not expected, ContainerID=" + container.containerId
+            + " is not expected, ContainerID=" + container.getContainerId()
             + " rm-size-resource:" + rmContainerResource + " nm-size-reosurce:"
             + nmContainerResource);
         container.eventHandler.handle(new RMNodeCleanContainerEvent(
-            container.nodeId, container.containerId));
+            container.nodeId, container.getContainerId()));
 
       }
     }
@@ -761,7 +765,7 @@ public class RMContainerImpl implements RMContainer, Comparable<RMContainer> {
 
       // Inform node
       container.eventHandler.handle(new RMNodeCleanContainerEvent(
-          container.nodeId, container.containerId));
+          container.nodeId, container.getContainerId()));
 
       // Inform appAttempt
       super.transition(container, event);
@@ -831,8 +835,8 @@ public class RMContainerImpl implements RMContainer, Comparable<RMContainer> {
 
   @Override
   public int compareTo(RMContainer o) {
-    if (containerId != null && o.getContainerId() != null) {
-      return containerId.compareTo(o.getContainerId());
+    if (getContainerId() != null && o.getContainerId() != null) {
+      return getContainerId().compareTo(o.getContainerId());
     }
     return -1;
   }
@@ -864,5 +868,24 @@ public class RMContainerImpl implements RMContainer, Comparable<RMContainer> {
   @Override
   public boolean isRemotelyAllocated() {
     return isExternallyAllocated;
+  }
+
+  @Override
+  public Resource getAllocatedOrReservedResource() {
+    try {
+      readLock.lock();
+      if (getState().equals(RMContainerState.RESERVED)) {
+        return getReservedResource();
+      } else {
+        return getAllocatedResource();
+      }
+    } finally {
+      readLock.unlock();
+    }
+  }
+
+  @Override
+  public NodeId getNodeId() {
+    return nodeId;
   }
 }
